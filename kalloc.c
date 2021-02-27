@@ -20,7 +20,8 @@ struct run {
 struct {
   struct spinlock lock;
   int use_lock;
-  struct run *freelist;
+  char * arr[600000];
+  int i;
 } kmem;
 
 // Initialization happens in two phases.
@@ -33,6 +34,7 @@ kinit1(void *vstart, void *vend)
 {
   initlock(&kmem.lock, "kmem");
   kmem.use_lock = 0;
+  kmem.i = 0;
   freerange(vstart, vend);
 }
 
@@ -59,7 +61,7 @@ freerange(void *vstart, void *vend)
 void
 kfree(char *v)
 {
-  struct run *r;
+  // struct run *r;
 
   if((uint)v % PGSIZE || v < end || V2P(v) >= PHYSTOP)
     panic("kfree");
@@ -69,9 +71,10 @@ kfree(char *v)
 
   if(kmem.use_lock)
     acquire(&kmem.lock);
-  r = (struct run*)v;
-  r->next = kmem.freelist;
-  kmem.freelist = r;
+  if(kmem.i >= 600000)
+    return;
+  kmem.arr[kmem.i] = (char*)v;
+  kmem.i++;
   if(kmem.use_lock)
     release(&kmem.lock);
 }
@@ -82,15 +85,17 @@ kfree(char *v)
 char*
 kalloc(void)
 {
-  struct run *r;
+
 
   if(kmem.use_lock)
     acquire(&kmem.lock);
-  r = kmem.freelist;
+  if(kmem.i < 0)
+    return 0;
+  char *r= 0;
+  r = kmem.arr[kmem.i - 1];
   if(r)
-    kmem.freelist = r->next;
+    kmem.i--;
   if(kmem.use_lock)
     release(&kmem.lock);
-  return (char*)r;
+  return r;
 }
-
